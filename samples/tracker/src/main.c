@@ -237,7 +237,7 @@ int main(void)
 
     /* Initialize motion */
     struct app_motion_config motion_config = {
-        .trigger_interval = 600,
+        .trigger_interval = 10,
     };
 
     err = app_motion_init(motion_config);
