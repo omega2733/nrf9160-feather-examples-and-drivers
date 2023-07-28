@@ -9,8 +9,8 @@ config APP_VERSION_MINOR
 	default 0
 
 config APP_VERSION_PATCH
-	int "Patch verison number"
-	default 0
+	string "Patch verison number"
+	default "x"
 
 config APP_VERSION_COMMIT
 	int "Commit verison number"
