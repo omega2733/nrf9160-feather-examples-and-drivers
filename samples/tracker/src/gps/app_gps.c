@@ -207,8 +207,8 @@ int app_gps_start(void) {
 
   /* Config w/ timeout */
   struct gps_config gps_cfg = {
-      .nav_mode = GPS_NAV_MODE_SINGLE_FIX,
-      .power_mode = GPS_POWER_MODE_DISABLED,
+      .nav_mode = GPS_NAV_MODE_CONTINUOUS,
+      .power_mode = GPS_POWER_MODE_PERFORMANCE,
       .timeout = CONFIG_GPS_CONTROL_FIX_TRY_TIME,
       .interval = CONFIG_GPS_CONTROL_FIX_CHECK_INTERVAL,
       .priority = true,

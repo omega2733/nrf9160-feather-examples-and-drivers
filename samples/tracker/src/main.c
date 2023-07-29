@@ -37,6 +37,7 @@ LOG_MODULE_REGISTER(app_main);
 bool m_cellular_connected = false;
 bool m_boot_message = false;
 bool m_initial_fix = false;
+bool save_gps_data = true;
 
 /* Tracking time */
 int64_t m_last_publish = 0;
@@ -50,6 +51,7 @@ static uint8_t rsrp = 0;
 /* Saving output if not connected */
 K_MSGQ_DEFINE(outgoing_msgq, sizeof(struct app_event), APP_EVENT_QUEUE_SIZE, 4);
 
+/*Timer Functions*/
 void activity_expiry_function(struct k_timer *dummy)
 {
     APP_EVENT_MANAGER_PUSH(APP_EVENT_ACTIVITY_TIMEOUT);
@@ -60,9 +62,18 @@ void gps_expiry_function(struct k_timer *dummy)
     APP_EVENT_MANAGER_PUSH(APP_EVENT_GPS_TIMEOUT);
 }
 
+/*GPS Save Timer*/
+/* This allows you to control how often to save GPS data, versus saving every single event.*/
+/* In GPS_CONTINUOUS mode this is 1HZ so a timer of 5s = every 5th event is saved*/
+void gps_save_function()
+{
+    save_gps_data = !save_gps_data;
+}
+
 /* Timers */
 K_TIMER_DEFINE(activity_timer, activity_expiry_function, NULL);
 K_TIMER_DEFINE(gps_search_timer, gps_expiry_function, NULL);
+K_TIMER_DEFINE(gps_save_timer, gps_save_function, NULL);
 
 /**
  * @brief LTE event handler
@@ -237,7 +248,7 @@ int main(void)
 
     /* Initialize motion */
     struct app_motion_config motion_config = {
-        .trigger_interval = 10,
+        .trigger_interval = 3,
     };
 
     err = app_motion_init(motion_config);
@@ -409,10 +420,10 @@ int main(void)
             uint8_t buf[256];
             size_t size = 0;
 
-#ifdef CONFIG_USE_LED_INDICATION
-            /* Solid LED */
-            app_indication_set(app_indication_solid);
-#endif
+            #ifdef CONFIG_USE_LED_INDICATION
+                        /* Solid LED */
+                        app_indication_set(app_indication_solid);
+            #endif
 
             /* Set motion time to now -- avoids motion trigger */
             app_motion_set_trigger_time(k_uptime_get());
@@ -430,6 +441,7 @@ int main(void)
             k_timer_stop(&gps_search_timer);
 
             /* Check if connected otherwise pop this into the outgoing msgq */
+            // Need to add a time delay here to only save data we care about in whatever interval
             if (!check_and_establish_connection())
             {
                 /* Save msg */
@@ -440,32 +452,39 @@ int main(void)
                 break;
             }
 
-            /* Encode CBOR data */
-            err = app_codec_gps_encode(&evt.gps_data, buf, sizeof(buf), &size);
-            if (err < 0)
-            {
-                LOG_ERR("Unable to encode data. Err: %i", err);
-                break;
-            }
+            //if (save_gps_data)
+            //{
+                /* Encode CBOR data */
+                err = app_codec_gps_encode(&evt.gps_data, buf, sizeof(buf), &size);
+                if (err < 0)
+                {
+                    LOG_ERR("Unable to encode data. Err: %i", err);
+                    break;
+                }
 
-            LOG_INF("Data size: %i", size);
+                LOG_INF("Data size: %i", size);
 
+                //LOG_INF("GPS Data saved, save_gps_data == TRUE");
+                //k_timer_start(&gps_save_timer, K_SECONDS(CONFIG_GPS_CONTINUOUS_SAVE_RATE), K_NO_WAIT);
+                //gps_save_function();
+            //}
             /* Publish gps data */
-            err = app_backend_publish("gps", buf, size);
+        /*    err = app_backend_publish("gps", buf, size);
             if (err)
             {
                 LOG_ERR("Unable to publish. Err: %i", err);
             }
-
+        */
             /* Stream gps data */
-            err = app_backend_stream("gps", buf, size);
+        /*    err = app_backend_stream("gps", buf, size);
             if (err)
             {
                 LOG_ERR("Unable to stream. Err: %i", err);
             }
-
+        */
             /* Start (in)activity timer */
             k_timer_start(&activity_timer, K_SECONDS(10), K_NO_WAIT);
+            //app_gps_stop();
 
             break;
 
@@ -505,6 +524,9 @@ int main(void)
 
             /* Start (in)activity timer */
             k_timer_start(&activity_timer, K_SECONDS(1), K_NO_WAIT);
+
+            LOG_INF("THIS IS THE MOTION EVENT DATA");
+            //app_gps_stop();
 
             break;
         }
